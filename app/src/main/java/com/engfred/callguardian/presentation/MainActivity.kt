@@ -40,7 +40,7 @@ class MainActivity : ComponentActivity() {
                                 MainScreen(navController = navController)
                             }
                             composable("call_forwarding_screen") {
-                                CallForwardingScreen()
+                                CallForwardingScreen(navController)
                             }
                             composable("blocked_contacts_screen") {
                                 BlockedContactsScreen(navController = navController)
