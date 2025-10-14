@@ -1,9 +1,13 @@
 package com.engfred.callguardian.presentation.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -25,7 +30,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,43 +48,30 @@ fun BlockedContactsScreen(
     navController: NavController,
     viewModel: MainViewModel = hiltViewModel()
 ) {
-    val blockedContacts by viewModel.blockedContacts.collectAsState()
+    val flatBlocked by viewModel.flatBlockedContacts.collectAsState()
     var showUnblockDialog by remember { mutableStateOf(false) }
     var selectedContact by remember { mutableStateOf<WhitelistedContact?>(null) }
 
     if (showUnblockDialog && selectedContact != null) {
         AlertDialog(
             onDismissRequest = { showUnblockDialog = false },
-            title = { Text("Unblock Contact?") },
-            text = { Text("Calls from ${selectedContact!!.contactName ?: selectedContact!!.originalPhoneNumber} will be allowed again.") },
+            title = { Text("Unblock Number?") },
+            text = { Text("Calls from ${selectedContact!!.contactName ?: selectedContact!!.originalPhoneNumber} will be allowed.") },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.unblockContact(selectedContact!!)
-                        showUnblockDialog = false
-                        selectedContact = null
-                    }
-                ) {
-                    Text("Unblock")
-                }
+                TextButton(onClick = {
+                    viewModel.unblockContact(selectedContact!!)
+                    showUnblockDialog = false
+                    selectedContact = null
+                }) { Text("Unblock") }
             },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showUnblockDialog = false
-                        selectedContact = null
-                    }
-                ) {
-                    Text("Cancel")
-                }
-            }
+            dismissButton = { TextButton(onClick = { showUnblockDialog = false; selectedContact = null }) { Text("Cancel") } }
         )
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Blocked Contacts (${blockedContacts.size})", fontWeight = FontWeight.Bold) },
+                title = { Text("Blocked Contacts (${flatBlocked.size})", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -92,33 +86,42 @@ fun BlockedContactsScreen(
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp)
         ) {
+            Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "These contacts are blocked from calling.",
+                text = "These numbers are blocked from calling. Any other number not in your phone book is by default blocked from calling.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 14.sp,
+                fontSize = 14.sp
             )
+            Spacer(modifier = Modifier.height(16.dp))
 
-            Spacer(modifier = Modifier.height(6.dp))
-
-            if (blockedContacts.isEmpty()) {
-                Text(
-                    "No blocked contacts yet.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            if (flatBlocked.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No blocked contacts yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(0.dp),
+                    contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
-                    items(blockedContacts, key = { it.normalizedPhoneNumber }) { contact ->
+                    items(flatBlocked, key = { it.normalizedPhoneNumber }) { contact ->
                         ContactListItem(
                             contact = contact,
                             isBlocked = true,
                             onActionClick = {
                                 selectedContact = contact
                                 showUnblockDialog = true
-                            }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(MaterialTheme.shapes.medium)
+                                .background(MaterialTheme.colorScheme.surface)
+                                .padding(vertical = 4.dp)
                         )
+                        Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
                     }
                 }
             }

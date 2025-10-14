@@ -6,52 +6,68 @@ import android.app.role.RoleManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.telephony.TelephonyManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Divider
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.engfred.callguardian.domain.models.WhitelistedContact
-import com.engfred.callguardian.presentation.components.ContactListItem
+import com.engfred.callguardian.presentation.components.ContactGroupItem
 import com.engfred.callguardian.presentation.viewmodel.MainViewModel
 import com.engfred.callguardian.presentation.viewmodel.SortType
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,19 +75,27 @@ fun MainScreen(
     viewModel: MainViewModel = hiltViewModel(),
     navController: NavController
 ) {
-    val whitelistedContacts by viewModel.whitelistedContacts.collectAsState()
+    val groupedContacts by viewModel.whitelistedContacts.collectAsState()
     val context = LocalContext.current
-    var expanded by remember { mutableStateOf(false) }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
     var sortExpanded by remember { mutableStateOf(false) }
     var showConfirmDialog by remember { mutableStateOf(false) }
     var selectedContact by remember { mutableStateOf<WhitelistedContact?>(null) }
+    var showAddDialog by remember { mutableStateOf(false) }
+    var nameInput by remember { mutableStateOf(TextFieldValue("")) }
+    var numberInput by remember { mutableStateOf(TextFieldValue("")) }
 
-    // Permission launcher for reading contacts (triggers sync and observer on grant)
+    val countryIso = remember {
+        val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        tm.simCountryIso.takeIf { it.isNotBlank() }?.uppercase() ?: "UG"
+    }
+
+    // Permission launcher...
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (isGranted) {
-            // Permission granted, trigger sync, register observer
             viewModel.triggerSyncContacts()
             viewModel.registerObserver(context)
             Toast.makeText(context, "Access granted. Whitelist synced with contacts.", Toast.LENGTH_SHORT).show()
@@ -80,7 +104,7 @@ fun MainScreen(
         }
     }
 
-    // Launcher to request Call Screening role
+    // Role launcher...
     val roleRequestLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -91,20 +115,15 @@ fun MainScreen(
         }
     }
 
-    // Check permissions and roles on launch
+    // Check permissions...
     LaunchedEffect(Unit) {
-        // Request READ_CONTACTS if not granted, and sync/register on success
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
             permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
         } else {
-            // Already granted, trigger sync and register observer
             viewModel.triggerSyncContacts()
             viewModel.registerObserver(context)
         }
 
-        // Check and request call screening role
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val roleManager = context.getSystemService(Context.ROLE_SERVICE) as RoleManager
             if (!roleManager.isRoleHeld(RoleManager.ROLE_CALL_SCREENING)) {
@@ -114,138 +133,181 @@ fun MainScreen(
         }
     }
 
-    if (showConfirmDialog && selectedContact != null) {
+    // Add Dialog
+    if (showAddDialog) {
         AlertDialog(
-            onDismissRequest = { showConfirmDialog = false },
-            title = { Text("Block Contact?") },
-            text = { Text("Calls from ${selectedContact!!.contactName ?: selectedContact!!.originalPhoneNumber} will be blocked. This action cannot be undone.") },
+            onDismissRequest = { showAddDialog = false },
+            title = { Text("Add to Whitelist") },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = nameInput,
+                        onValueChange = { nameInput = it },
+                        label = { Text("Name (optional)") },
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = numberInput,
+                        onValueChange = { numberInput = it },
+                        label = { Text("Phone Number") },
+                        singleLine = true
+                    )
+                }
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.removeContact(selectedContact!!)
-                        showConfirmDialog = false
-                        selectedContact = null
+                        viewModel.addManualContact(nameInput.text, numberInput.text, countryIso)
+                        showAddDialog = false
+                        nameInput = TextFieldValue("")
+                        numberInput = TextFieldValue("")
+                        Toast.makeText(context, "Added to whitelist.", Toast.LENGTH_SHORT).show()
                     }
                 ) {
-                    Text("Block")
+                    Text("Add")
                 }
             },
             dismissButton = {
-                TextButton(
-                    onClick = {
-                        showConfirmDialog = false
-                        selectedContact = null
-                    }
-                ) {
-                    Text("Cancel")
-                }
+                TextButton(onClick = { showAddDialog = false }) { Text("Cancel") }
             }
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Call Guardian", fontWeight = FontWeight.Bold) },
-                actions = {
-                    IconButton(onClick = { expanded = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "More options")
-                    }
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Manage Call Forwarding") },
-                            onClick = {
-                                navController.navigate("call_forwarding_screen")
-                                expanded = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("View Blocked Contacts") },
-                            onClick = {
-                                navController.navigate("blocked_contacts_screen")
-                                expanded = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Settings") },
-                            onClick = {
-                                navController.navigate("settings_screen")
-                                expanded = false
-                            }
-                        )
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp)
-        ) {
-            Box(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.align(Alignment.CenterStart),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+    // Confirm Block Dialog
+    if (showConfirmDialog && selectedContact != null) {
+        AlertDialog(
+            onDismissRequest = { showConfirmDialog = false },
+            title = { Text("Block Number?") },
+            text = { Text("Calls from ${selectedContact!!.contactName ?: selectedContact!!.originalPhoneNumber} will be blocked.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.removeContact(selectedContact!!)
+                    showConfirmDialog = false
+                    selectedContact = null
+                }) { Text("Block") }
+            },
+            dismissButton = { TextButton(onClick = { showConfirmDialog = false; selectedContact = null }) { Text("Cancel") } }
+        )
+    }
+
+    // Navigation Drawer Sheet
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(
-                        text = "Allowed Contacts (${whitelistedContacts.size})",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.SemiBold
+                        text = "Menu",
+                        modifier = Modifier.padding(16.dp),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    Divider(color = MaterialTheme.colorScheme.outline)
+                    DropdownMenuItem(
+                        text = { Text("Manage Call Forwarding") },
+                        onClick = { scope.launch { drawerState.close(); navController.navigate("call_forwarding_screen") } }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("View Blocked Contacts") },
+                        onClick = { scope.launch { drawerState.close(); navController.navigate("blocked_contacts_screen") } }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Settings") },
+                        onClick = { scope.launch { drawerState.close(); navController.navigate("settings_screen") } }
                     )
                 }
-                Row(
-                    modifier = Modifier.align(Alignment.CenterEnd),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    IconButton(onClick = { sortExpanded = true }) {
-                        Icon(Icons.Default.Sort, contentDescription = "Sort")
-                    }
-
-                    // Move the DropdownMenu here so it is anchored to the IconButton above.
-                    DropdownMenu(
-                        expanded = sortExpanded,
-                        onDismissRequest = { sortExpanded = false },
-                    ) {
-                        SortType.entries.forEach { sortType ->
-                            DropdownMenuItem(
-                                text = { Text(sortType.name.replace("_", " -> ")) },
-                                onClick = {
-                                    viewModel.setSortType(sortType)
-                                    sortExpanded = false
-                                }
-                            )
+            }
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Call Guardian", fontWeight = FontWeight.Bold) },
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, contentDescription = "Menu")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { sortExpanded = true }) {
+                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
+                        }
+                        DropdownMenu(
+                            expanded = sortExpanded,
+                            onDismissRequest = { sortExpanded = false }
+                        ) {
+                            SortType.entries.forEach { sortType ->
+                                DropdownMenuItem(
+                                    text = { Text(sortType.name.replace("_", " -> ")) },
+                                    onClick = {
+                                        viewModel.setSortType(sortType)
+                                        sortExpanded = false
+                                    }
+                                )
+                            }
                         }
                     }
+                )
+            },
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = { showAddDialog = true },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Contact")
                 }
             }
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 16.dp)
+            ) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Allowed Contacts (${groupedContacts.sumOf { if (it.isExpanded) it.otherContacts.size + 1 else 1 }})",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
 
-            if (whitelistedContacts.isEmpty()) {
-                Text(
-                    "No allowed contacts yet. Grant contacts permission to sync.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(whitelistedContacts, key = { it.normalizedPhoneNumber }) { contact ->
-                        ContactListItem(
-                            contact = contact,
-                            isBlocked = false,
-                            onActionClick = {
-                                selectedContact = contact
-                                showConfirmDialog = true
-                            }
+                if (groupedContacts.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "No allowed contacts yet. Grant contacts permission to sync or add manually.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium
                         )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(0.dp),
+                        contentPadding = PaddingValues(bottom = 80.dp)  // Space for FAB
+                    ) {
+                        items(groupedContacts, key = { it.contactId ?: it.contactName ?: "" }) { group ->
+                            ContactGroupItem(
+                                group = group,
+                                onGroupToggle = { viewModel.toggleGroupExpansion(it) },
+                                onBlockClick = { contact ->
+                                    selectedContact = contact
+                                    showConfirmDialog = true
+                                }
+                            )
+                            if (groupedContacts.last() != group) {
+                                Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
+                            }
+                        }
                     }
                 }
             }
