@@ -1,10 +1,16 @@
 package com.engfred.callguardian.data.repository
 
 import android.content.ContentResolver
+import android.content.Context
 import android.net.Uri
 import android.provider.ContactsContract
+import android.telephony.TelephonyManager
+import android.util.Log
 import com.engfred.callguardian.domain.models.WhitelistedContact
 import com.engfred.callguardian.domain.repository.ContactRepository
+import com.engfred.callguardian.domain.utils.PhoneNumberNormalizer
+import com.google.i18n.phonenumbers.PhoneNumberUtil
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 
 /**
@@ -13,12 +19,27 @@ import javax.inject.Inject
  * to retrieve contact data.
  */
 class ContactRepositoryImpl @Inject constructor(
-    private val contentResolver: ContentResolver
+    @ApplicationContext private val context: Context,
+    private val phoneNormalizer: PhoneNumberNormalizer
 ) : ContactRepository {
+
+    private val contentResolver: ContentResolver = context.contentResolver
+    private val phoneUtil: PhoneNumberUtil = PhoneNumberUtil.getInstance()
+    private val telephonyManager: TelephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+    private val countryIso: String by lazy {
+        // Prioritize SIM country (stable), then network, then default
+        telephonyManager.simCountryIso.takeIf { it.isNotBlank() }?.uppercase() ?:
+        telephonyManager.networkCountryIso.takeIf { it.isNotBlank() }?.uppercase() ?:
+        "UG"
+    }
+    // One-time log for debugging
+    init {
+        Log.d("ContactRepo", "Using country ISO: $countryIso")
+    }
 
     override fun getContactFromUri(contactUri: Uri): WhitelistedContact? {
         var name: String? = null
-        var number: String? = null
+        var firstValidNumber: WhitelistedContact? = null
         val cursor = contentResolver.query(contactUri, null, null, null, null)
         cursor?.use { c ->
             if (c.moveToFirst()) {
@@ -37,14 +58,26 @@ class ContactRepositoryImpl @Inject constructor(
                             null,
                             "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
                             arrayOf(contactId),
-                            null
+                            "${ContactsContract.CommonDataKinds.Phone.IS_PRIMARY} DESC, ${ContactsContract.CommonDataKinds.Phone._ID} ASC"
                         )
                         phones?.use { p ->
-                            if (p.moveToFirst()) {
+                            while (p.moveToNext()) {  // Loop for all, but take first valid for single return
                                 val phoneNumberIndex = p.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
-
                                 if (phoneNumberIndex != -1) {
-                                    number = p.getString(phoneNumberIndex)?.replace("[^0-9]".toRegex(), "")
+                                    val rawNumber = p.getString(phoneNumberIndex)
+                                    if (!rawNumber.isNullOrBlank()) {
+                                        val original = rawNumber
+                                        val normalized = phoneNormalizer.normalize(original, countryIso)
+                                        if (!normalized.isNullOrBlank() && normalized.length >= 10) {
+                                            firstValidNumber = WhitelistedContact(
+                                                originalPhoneNumber = original,
+                                                normalizedPhoneNumber = normalized,
+                                                contactName = name,
+                                                contactId = contactId
+                                            )
+                                            break  // First valid for single contact
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -52,11 +85,7 @@ class ContactRepositoryImpl @Inject constructor(
                 }
             }
         }
-        return if (!number.isNullOrBlank()) {
-            WhitelistedContact(phoneNumber = number!!, contactName = name)
-        } else {
-            null
-        }
+        return firstValidNumber
     }
 
     override fun getAllContacts(): List<WhitelistedContact> {
@@ -82,21 +111,26 @@ class ContactRepositoryImpl @Inject constructor(
                     null,
                     "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
                     arrayOf(contactId),
-                    "${ContactsContract.CommonDataKinds.Phone.IS_PRIMARY} DESC, ${ContactsContract.CommonDataKinds.Phone._ID} ASC"
+                    null  // No sorting, get all
                 )
                 phonesCursor?.use { p ->
-                    if (p.moveToFirst()) {
-                        val numberIndex = p.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
-                        if (numberIndex != -1) {
+                    val numberIndex = p.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                    if (numberIndex != -1) {
+                        while (p.moveToNext()) {  // All phones
                             val rawNumber = p.getString(numberIndex)
-                            val normalizedNumber = rawNumber?.replace("[^0-9]".toRegex(), "")
-                            if (!normalizedNumber.isNullOrBlank() && normalizedNumber.length >= 7) {
-                                contacts.add(
-                                    WhitelistedContact(
-                                        phoneNumber = normalizedNumber,
-                                        contactName = name
+                            if (!rawNumber.isNullOrBlank()) {
+                                val original = rawNumber
+                                val normalized = phoneNormalizer.normalize(original, countryIso)
+                                if (!normalized.isNullOrBlank() && normalized.length >= 10) {
+                                    contacts.add(
+                                        WhitelistedContact(
+                                            originalPhoneNumber = original,
+                                            normalizedPhoneNumber = normalized,
+                                            contactName = name,
+                                            contactId = contactId
+                                        )
                                     )
-                                )
+                                }
                             }
                         }
                     }

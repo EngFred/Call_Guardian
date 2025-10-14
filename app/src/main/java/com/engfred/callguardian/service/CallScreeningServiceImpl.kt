@@ -23,30 +23,28 @@ class CallScreeningServiceImpl : CallScreeningService() {
             return
         }
 
-        // Normalize to digits only (matches stored whitelist format)
-        val incomingNumber = rawIncomingNumber.replace(Regex("[^0-9]"), "")
-        if (incomingNumber.length < 7) {  // Too short/invalid (e.g., private caller)
-            Log.i(TAG, "Invalid short number: $incomingNumber. Rejecting.")
+        if (rawIncomingNumber.length < 7) {  // Too short/invalid (e.g., private caller)
+            Log.i(TAG, "Invalid short number: $rawIncomingNumber. Rejecting.")
             respondToCall(details, createRejectResponse())
             return
         }
 
         try {
-            // Use the synchronous cached check to make the decision immediately
-            val isWhitelisted = callWhitelistManager.isNumberWhitelisted(incomingNumber)
+            // Pass raw (may have +/spaces); let manager normalize robustly
+            val isWhitelisted = callWhitelistManager.isNumberWhitelisted(rawIncomingNumber)
 
             val response = if (isWhitelisted) {
-                Log.i(TAG, "Number $incomingNumber is whitelisted. Allowing call.")
+                Log.i(TAG, "Number $rawIncomingNumber is whitelisted. Allowing call.")
                 createAllowResponse()
             } else {
-                Log.i(TAG, "Number $incomingNumber is NOT whitelisted. Rejecting call.")
+                Log.i(TAG, "Number $rawIncomingNumber is NOT whitelisted. Rejecting call.")
                 createRejectResponse()
             }
 
             // Send the single, final response to the OS
             respondToCall(details, response)
         } catch (e: Exception) {
-            Log.e(TAG, "Error screening call for $incomingNumber", e)
+            Log.e(TAG, "Error screening call for $rawIncomingNumber", e)
             // Default to reject on error for safety
             respondToCall(details, createRejectResponse())
         }

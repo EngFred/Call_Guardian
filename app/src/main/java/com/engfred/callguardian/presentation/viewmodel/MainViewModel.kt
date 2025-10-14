@@ -68,7 +68,7 @@ class MainViewModel @Inject constructor(
     private fun getComparator(sortType: SortType) = when (sortType) {
         SortType.A_Z -> compareBy<WhitelistedContact> { it.contactName?.lowercase() ?: "" }
         SortType.Z_A -> compareByDescending<WhitelistedContact> { it.contactName?.lowercase() ?: "" }
-        SortType.RECENT -> compareByDescending<WhitelistedContact> { it.phoneNumber }  // Placeholder
+        SortType.RECENT -> compareByDescending<WhitelistedContact> { it.originalPhoneNumber }  // Use original for sort
     }
 
     // Function to trigger syncing contacts with whitelist (enqueues work)
@@ -84,14 +84,14 @@ class MainViewModel @Inject constructor(
     // Function to block a contact (sets isBlocked = true)
     fun removeContact(contact: WhitelistedContact) {
         viewModelScope.launch {
-            updateBlockedStatusUseCase(contact.phoneNumber, true)
+            updateBlockedStatusUseCase(contact.normalizedPhoneNumber, true)
         }
     }
 
     // Function to unblock a contact (sets isBlocked = false)
     fun unblockContact(contact: WhitelistedContact) {
         viewModelScope.launch {
-            updateBlockedStatusUseCase(contact.phoneNumber, false)
+            updateBlockedStatusUseCase(contact.normalizedPhoneNumber, false)
         }
     }
 

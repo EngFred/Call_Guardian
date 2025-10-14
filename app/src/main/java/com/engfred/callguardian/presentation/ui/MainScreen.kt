@@ -9,15 +9,12 @@ import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -121,7 +118,7 @@ fun MainScreen(
         AlertDialog(
             onDismissRequest = { showConfirmDialog = false },
             title = { Text("Block Contact?") },
-            text = { Text("Calls from ${selectedContact!!.contactName ?: selectedContact!!.phoneNumber} will be blocked. This action cannot be undone.") },
+            text = { Text("Calls from ${selectedContact!!.contactName ?: selectedContact!!.originalPhoneNumber} will be blocked. This action cannot be undone.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -190,16 +187,6 @@ fun MainScreen(
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp)
         ) {
-            Text(
-                text = "Contacts not listed below will be blocked by default, This list syncs automatically with your contacts by default",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 14.sp,
-                maxLines = 2,
-                modifier = Modifier.padding(bottom = 0.dp).basicMarquee()
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
             Box(
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -250,7 +237,7 @@ fun MainScreen(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(whitelistedContacts, key = { it.phoneNumber }) { contact ->
+                    items(whitelistedContacts, key = { it.normalizedPhoneNumber }) { contact ->
                         ContactListItem(
                             contact = contact,
                             isBlocked = false,

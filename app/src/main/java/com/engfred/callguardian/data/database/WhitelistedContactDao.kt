@@ -19,6 +19,6 @@ interface WhitelistedContactDao {
     @Delete
     suspend fun deleteContact(contact: WhitelistedContactEntity)
 
-    @Query("UPDATE whitelisted_contacts SET isBlocked = :isBlocked WHERE phoneNumber = :phoneNumber")
-    suspend fun updateBlockedStatus(phoneNumber: String, isBlocked: Boolean)
+    @Query("UPDATE whitelisted_contacts SET isBlocked = :isBlocked WHERE normalizedPhoneNumber = :normalizedPhoneNumber")
+    suspend fun updateBlockedStatus(normalizedPhoneNumber: String, isBlocked: Boolean)
 }

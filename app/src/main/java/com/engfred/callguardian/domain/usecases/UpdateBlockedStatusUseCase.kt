@@ -6,7 +6,7 @@ import javax.inject.Inject
 class UpdateBlockedStatusUseCase @Inject constructor(
     private val repository: CallWhitelistRepository
 ) {
-    suspend operator fun invoke(phoneNumber: String, isBlocked: Boolean) {
-        repository.updateBlockedStatus(phoneNumber, isBlocked)
+    suspend operator fun invoke(normalizedPhoneNumber: String, isBlocked: Boolean) {
+        repository.updateBlockedStatus(normalizedPhoneNumber, isBlocked)
     }
 }

@@ -4,19 +4,21 @@ import com.engfred.callguardian.data.models.WhitelistedContactEntity
 import com.engfred.callguardian.domain.models.WhitelistedContact
 
 object WhitelistedContactMapper {
-    fun mapFromEntity(entity: WhitelistedContactEntity): WhitelistedContact {
-        return WhitelistedContact(
-            phoneNumber = entity.phoneNumber,
+    fun mapToEntity(contact: WhitelistedContact): WhitelistedContactEntity =
+        WhitelistedContactEntity(
+            normalizedPhoneNumber = contact.normalizedPhoneNumber,
+            originalPhoneNumber = contact.originalPhoneNumber,
+            contactName = contact.contactName,
+            contactId = contact.contactId,
+            isBlocked = contact.isBlocked
+        )
+
+    fun mapFromEntity(entity: WhitelistedContactEntity): WhitelistedContact =
+        WhitelistedContact(
+            originalPhoneNumber = entity.originalPhoneNumber,
+            normalizedPhoneNumber = entity.normalizedPhoneNumber,
             contactName = entity.contactName,
+            contactId = entity.contactId,
             isBlocked = entity.isBlocked
         )
-    }
-
-    fun mapToEntity(domainModel: WhitelistedContact): WhitelistedContactEntity {
-        return WhitelistedContactEntity(
-            phoneNumber = domainModel.phoneNumber,
-            contactName = domainModel.contactName,
-            isBlocked = domainModel.isBlocked
-        )
-    }
 }

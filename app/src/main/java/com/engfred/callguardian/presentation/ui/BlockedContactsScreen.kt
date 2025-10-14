@@ -49,7 +49,7 @@ fun BlockedContactsScreen(
         AlertDialog(
             onDismissRequest = { showUnblockDialog = false },
             title = { Text("Unblock Contact?") },
-            text = { Text("Calls from ${selectedContact!!.contactName ?: selectedContact!!.phoneNumber} will be allowed again.") },
+            text = { Text("Calls from ${selectedContact!!.contactName ?: selectedContact!!.originalPhoneNumber} will be allowed again.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -110,7 +110,7 @@ fun BlockedContactsScreen(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(blockedContacts, key = { it.phoneNumber }) { contact ->
+                    items(blockedContacts, key = { it.normalizedPhoneNumber }) { contact ->
                         ContactListItem(
                             contact = contact,
                             isBlocked = true,

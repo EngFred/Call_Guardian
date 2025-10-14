@@ -14,20 +14,23 @@ class SyncContactsUseCase @Inject constructor(
 ) {
     suspend operator fun invoke() = withContext(Dispatchers.IO) {
         val allPhoneContacts = contactRepository.getAllContacts()
-        val phoneNumbersSet = allPhoneContacts.map { it.phoneNumber }.toSet()
+        val normalizedSet = allPhoneContacts.map { it.normalizedPhoneNumber }.toSet()
         val currentDbContacts = callWhitelistRepository.getWhitelistedContacts().first()
 
-        // Upsert new phone contacts (isBlocked=false); update names for existing (keep isBlocked)
+        // Upsert new/updated phone contacts (preserve isBlocked for existing)
         allPhoneContacts.forEach { phoneContact ->
-            val existingDbContact = currentDbContacts.find { it.phoneNumber == phoneContact.phoneNumber }
-            val contactToUpsert = existingDbContact?.copy(contactName = phoneContact.contactName)
-                ?: phoneContact.copy(isBlocked = false)
+            val existingDbContact = currentDbContacts.find { it.normalizedPhoneNumber == phoneContact.normalizedPhoneNumber }
+            val contactToUpsert = existingDbContact?.copy(
+                contactName = phoneContact.contactName,
+                originalPhoneNumber = phoneContact.originalPhoneNumber,
+                contactId = phoneContact.contactId
+            ) ?: phoneContact.copy(isBlocked = false)
             callWhitelistRepository.upsertContact(contactToUpsert)
         }
 
         // Remove DB entries for deleted phone contacts
         currentDbContacts
-            .filter { contact -> !phoneNumbersSet.contains(contact.phoneNumber) }
+            .filter { contact -> !normalizedSet.contains(contact.normalizedPhoneNumber) }
             .forEach { contact ->
                 callWhitelistRepository.removeContact(contact)
             }
