@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.engfred.callguardian.domain.models.ContactGroup
 import com.engfred.callguardian.domain.models.WhitelistedContact
 import com.engfred.callguardian.presentation.components.ContactGroupItem
 import com.engfred.callguardian.presentation.viewmodel.MainViewModel
@@ -83,6 +84,7 @@ fun MainScreen(
     var showConfirmDialog by remember { mutableStateOf(false) }
     var selectedContact by remember { mutableStateOf<WhitelistedContact?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
+    var showInfoDialog by remember { mutableStateOf(false) }
     var nameInput by remember { mutableStateOf(TextFieldValue("")) }
     var numberInput by remember { mutableStateOf(TextFieldValue("")) }
 
@@ -131,6 +133,23 @@ fun MainScreen(
                 roleRequestLauncher.launch(intent)
             }
         }
+    }
+
+    // Info Dialog
+    if (showInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showInfoDialog = false },
+            title = { Text("Add to Whitelist") },
+            text = { Text("Note: Contacts added here are saved in the app to allow calls from them, not in your phone's contacts.") },
+            confirmButton = {
+                TextButton(onClick = { showInfoDialog = false; showAddDialog = true }) {
+                    Text("Got it")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showInfoDialog = false }) { Text("Cancel") }
+            }
+        )
     }
 
     // Add Dialog
@@ -253,7 +272,7 @@ fun MainScreen(
             },
             floatingActionButton = {
                 FloatingActionButton(
-                    onClick = { showAddDialog = true },
+                    onClick = { showInfoDialog = true },
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 ) {

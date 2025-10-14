@@ -46,7 +46,7 @@ class MainActivity : ComponentActivity() {
                                 BlockedContactsScreen(navController = navController)
                             }
                             composable("settings_screen") {
-                                SettingsScreen()
+                                SettingsScreen(navController = navController)
                             }
                         }
                     } else {

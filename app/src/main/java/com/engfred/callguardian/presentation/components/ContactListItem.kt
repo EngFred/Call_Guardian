@@ -2,6 +2,7 @@ package com.engfred.callguardian.presentation.components
 
 import android.graphics.BitmapFactory
 import android.provider.ContactsContract
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,8 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -49,7 +49,7 @@ fun ContactListItem(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var contactBitmap by remember { mutableStateOf<ImageVector?>(null) }  // Use ImageVector for fallback, Bitmap for photo
+    var contactBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
 
     // Async load photo if contactId present
     LaunchedEffect(contact.contactId) {
@@ -65,9 +65,7 @@ fun ContactListItem(
                     )
                     inputStream?.use {
                         val bitmap = BitmapFactory.decodeStream(it)
-                        // Note: In a full app, convert and store as ImageBitmap state
-                        // For simplicity, we'll set a placeholder; extend with actual bitmap handling
-                        // contactBitmap = bitmap?.asImageBitmap()  // Uncomment and adjust type if using ImageBitmap
+                        contactBitmap = bitmap?.asImageBitmap()
                     }
                 } catch (e: Exception) {
                     // Log error in prod
@@ -93,7 +91,7 @@ fun ContactListItem(
         // Avatar: Photo or Initial
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(55.dp)
                 .clip(CircleShape)
                 .background(
                     color = MaterialTheme.colorScheme.primaryContainer,
@@ -102,12 +100,10 @@ fun ContactListItem(
             contentAlignment = Alignment.Center
         ) {
             if (contactBitmap != null) {
-                // If photo loaded (extend for Image(painter = rememberBitmapPainter(contactBitmap)))
-                Icon(
-                    imageVector = contactBitmap!!,
+                Image(
+                    bitmap = contactBitmap!!,
                     contentDescription = "Contact photo",
-                    modifier = Modifier.size(40.dp),
-                    tint = Color.Unspecified
+                    modifier = Modifier.size(55.dp)
                 )
             } else {
                 val firstInitial = contact.contactName?.firstOrNull()?.uppercase()?.take(1) ?: "?"

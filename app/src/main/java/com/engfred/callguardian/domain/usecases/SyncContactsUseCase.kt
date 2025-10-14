@@ -1,6 +1,5 @@
 package com.engfred.callguardian.domain.usecases
 
-import com.engfred.callguardian.domain.models.WhitelistedContact
 import com.engfred.callguardian.domain.repository.CallWhitelistRepository
 import com.engfred.callguardian.domain.repository.ContactRepository
 import kotlinx.coroutines.Dispatchers
@@ -28,9 +27,9 @@ class SyncContactsUseCase @Inject constructor(
             callWhitelistRepository.upsertContact(contactToUpsert)
         }
 
-        // Remove DB entries for deleted phone contacts
+        // Remove DB entries for deleted phone contacts (only synced ones, not manual)
         currentDbContacts
-            .filter { contact -> !normalizedSet.contains(contact.normalizedPhoneNumber) }
+            .filter { contact -> contact.contactId != null && !normalizedSet.contains(contact.normalizedPhoneNumber) }
             .forEach { contact ->
                 callWhitelistRepository.removeContact(contact)
             }
