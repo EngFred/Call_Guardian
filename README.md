@@ -48,31 +48,6 @@ app/
 
 ---
 
-## Dependencies & Purpose
-
-Below are the main dependency versions used in the project and why each is included.
-
-### Versions (selected)
-
-```
-agp = 8.11.1
-kotlin = 2.1.0
-coreKtx = 1.16.0
-composeBom = 2024.09.00
-navigationCompose = 2.9.2
-hiltAndroid = 2.55
-room = 2.6.1
-kotlinxCoroutines = 1.10.2
-accompanistPermissions = 0.37.3
-coil = 2.7.0
-libphonenumber = 9.0.16
-workManager = 2.10.5
-androidxHiltWork = 1.3.0
-splashscreen = 1.0.1
-materialIconsExtended = 1.7.8
-landscapistCoil = 2.6.1
-```
-
 ### Libraries & Purposes
 
 * `androidx.core:core-ktx` — Kotlin extensions for Android framework APIs (convenience helpers).
